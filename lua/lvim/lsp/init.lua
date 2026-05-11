@@ -86,6 +86,30 @@ function M.get_common_opts()
   }
 end
 
+local function patch_lsp_glob_handler()
+  -- LSP servers (e.g. dart-language-server) may send invalid globs like **/**.dart
+  -- which Neovim 0.10+ vim.glob rejects. Normalize **/**.ext → **/*.ext before validation.
+  local orig = vim.lsp.handlers["client/registerCapability"]
+  if not orig then
+    return
+  end
+  vim.lsp.handlers["client/registerCapability"] = function(err, result, ctx, config)
+    if result and result.registrations then
+      for _, reg in ipairs(result.registrations) do
+        local selector = vim.tbl_get(reg, "registerOptions", "documentSelector")
+        if selector then
+          for _, s in ipairs(selector) do
+            if type(s.pattern) == "string" then
+              s.pattern = s.pattern:gsub("%*%*/%*%*%.", "**/*.")
+            end
+          end
+        end
+      end
+    end
+    return orig(err, result, ctx, config)
+  end
+end
+
 function M.setup()
   Log:debug "Setting up LSP support"
 
@@ -93,6 +117,8 @@ function M.setup()
   if not lsp_status_ok then
     return
   end
+
+  patch_lsp_glob_handler()
 
   if lvim.use_icons then
     for _, sign in ipairs(vim.tbl_get(vim.diagnostic.config(), "signs", "values") or {}) do
