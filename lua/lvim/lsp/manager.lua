@@ -5,15 +5,32 @@ local fmt = string.format
 local lvim_lsp_utils = require "lvim.lsp.utils"
 local is_windows = vim.loop.os_uname().version:match "Windows"
 
+local function get_mason_lspconfig_mapping()
+  local ok, mappings = pcall(require, "mason-lspconfig.mappings")
+  if ok and type(mappings.get_mason_map) == "function" then
+    return mappings.get_mason_map().lspconfig_to_package or {}
+  end
+
+  ok, mappings = pcall(require, "mason-lspconfig.mappings.server")
+  if ok then
+    return mappings.lspconfig_to_package or {}
+  end
+
+  return {}
+end
+
 local function resolve_mason_config(server_name)
   local found, mason_config = pcall(require, "mason-lspconfig.server_configurations." .. server_name)
   if not found then
     Log:debug(fmt("mason configuration not found for %s", server_name))
     return {}
   end
-  local server_mapping = require "mason-lspconfig.mappings.server"
+  local server_mapping = get_mason_lspconfig_mapping()
   local path = require "mason-core.path"
-  local pkg_name = server_mapping.lspconfig_to_package[server_name]
+  local pkg_name = server_mapping[server_name]
+  if not pkg_name then
+    return {}
+  end
   local install_dir = path.package_prefix(pkg_name)
   local conf = mason_config(install_dir)
   if is_windows and conf.cmd and conf.cmd[1] then
@@ -49,6 +66,24 @@ local function resolve_config(server_name, ...)
   return defaults
 end
 
+local function get_default_config(server_name)
+  local ok, config = pcall(require, ("lspconfig.server_configurations.%s"):format(server_name))
+  if ok then
+    return config.default_config or {}
+  end
+
+  if vim.lsp.config then
+    ok, config = pcall(function()
+      return vim.lsp.config[server_name]
+    end)
+    if ok then
+      return config or {}
+    end
+  end
+
+  return {}
+end
+
 -- manually start the server and don't wait for the usual filetype trigger from lspconfig
 local function buf_try_add(server_name, bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
@@ -59,6 +94,10 @@ end
 -- this helps guarding against a data-race condition where a server can get configured twice
 -- which seems to occur only when attaching to single-files
 local function client_is_configured(server_name, ft)
+  if vim.lsp.is_enabled and vim.lsp.is_enabled(server_name) then
+    return true
+  end
+
   ft = ft or vim.bo.filetype
   local active_autocmds = vim.api.nvim_get_autocmds { event = "FileType", pattern = ft }
   for _, result in ipairs(active_autocmds) do
@@ -72,18 +111,20 @@ end
 
 local function launch_server(server_name, config)
   pcall(function()
-    local command = config.cmd
-      or (function()
-        local default_config = require("lspconfig.server_configurations." .. server_name).default_config
-        return default_config.cmd
-      end)()
+    local command = config.cmd or get_default_config(server_name).cmd
     -- some servers have dynamic commands defined with on_new_config
     if type(command) == "table" and type(command[1]) == "string" and vim.fn.executable(command[1]) ~= 1 then
       Log:debug(string.format("[%q] is either not installed, missing from PATH, or not executable.", server_name))
       return
     end
-    require("lspconfig")[server_name].setup(config)
-    buf_try_add(server_name)
+
+    if vim.lsp.config and vim.lsp.enable then
+      vim.lsp.config(server_name, config)
+      vim.lsp.enable(server_name)
+    else
+      require("lspconfig")[server_name].setup(config)
+      buf_try_add(server_name)
+    end
   end)
 end
 
@@ -98,10 +139,10 @@ function M.setup(server_name, user_config)
     return
   end
 
-  local server_mapping = require "mason-lspconfig.mappings.server"
+  local server_mapping = get_mason_lspconfig_mapping()
   local registry = require "mason-registry"
 
-  local pkg_name = server_mapping.lspconfig_to_package[server_name]
+  local pkg_name = server_mapping[server_name]
   if not pkg_name then
     local config = resolve_config(server_name, user_config)
     launch_server(server_name, config)

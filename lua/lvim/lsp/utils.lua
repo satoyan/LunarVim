@@ -44,11 +44,20 @@ end
 ---@return string[] supported filestypes as a list of strings
 function M.get_supported_filetypes(server_name)
   local status_ok, config = pcall(require, ("lspconfig.server_configurations.%s"):format(server_name))
-  if not status_ok then
-    return {}
+  if status_ok then
+    return config.default_config.filetypes or {}
   end
 
-  return config.default_config.filetypes or {}
+  if vim.lsp.config then
+    status_ok, config = pcall(function()
+      return vim.lsp.config[server_name]
+    end)
+    if status_ok and config then
+      return config.filetypes or {}
+    end
+  end
+
+  return {}
 end
 
 ---Get supported servers per filetype
