@@ -23,6 +23,8 @@ _G.require_clean = require("lvim.utils.modules").require_clean
 _G.require_safe = require("lvim.utils.modules").require_safe
 _G.reload = require("lvim.utils.modules").reload
 
+require("lvim.utils.compat").setup()
+
 ---Get the full path to `$LUNARVIM_RUNTIME_DIR`
 ---@return string|nil
 function _G.get_runtime_dir()
