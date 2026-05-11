@@ -57,15 +57,12 @@ function M.view_lunarvim_changelog()
     .new(opts, {
       prompt_title = "~ LunarVim Changelog ~",
 
-      finder = finders.new_oneshot_job(
-        vim.tbl_flatten {
-          "git",
-          "log",
-          "--pretty=oneline",
-          "--abbrev-commit",
-        },
-        opts
-      ),
+      finder = finders.new_oneshot_job({
+        "git",
+        "log",
+        "--pretty=oneline",
+        "--abbrev-commit",
+      }, opts),
       previewer = {
         previewers.git_commit_diff_as_was.new(opts),
       },

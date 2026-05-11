@@ -409,6 +409,14 @@ function remove_old_cache_files() {
   fi
 }
 
+function remove_old_lockfile() {
+  local lazy_lockfile="$LUNARVIM_CONFIG_DIR/lazy-lock.json"
+  if [ -e "$lazy_lockfile" ]; then
+    msg "Moving old lazy lockfile to ${lazy_lockfile}.old"
+    mv -f "$lazy_lockfile" "${lazy_lockfile}.old"
+  fi
+}
+
 function setup_lvim() {
 
   msg "Installing LunarVim shim"
@@ -419,6 +427,8 @@ function setup_lvim() {
 
   [ ! -f "$LUNARVIM_CONFIG_DIR/config.lua" ] \
     && cp "$LUNARVIM_BASE_DIR/utils/installer/config.example.lua" "$LUNARVIM_CONFIG_DIR/config.lua"
+
+  remove_old_lockfile
 
   echo "Preparing Lazy setup"
 

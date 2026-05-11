@@ -15,6 +15,7 @@ local core_plugins = {
       -- automatic_installation is handled by lsp-manager
       local settings = require "mason-lspconfig.settings"
       settings.current.automatic_installation = false
+      settings.current.automatic_enable = false
     end,
     lazy = true,
     event = "User FileOpened",
